@@ -1,0 +1,22 @@
+{
+  "providers": [
+    {
+      "name": "OpenAI",
+      "domains": [
+        "openai.com",
+        "auth.openai.com",
+        "mail.openai.com",
+        "notifications.openai.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication"
+      ]
+    }
+  ]
+}
+

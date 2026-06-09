@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import hashlib
+
+from spam_filter.classifier import (
+    DecisionPolicy,
+    OpenAIEmailClassifier,
+    fallback_junk_decision,
+)
+from spam_filter.config import Settings
+from spam_filter.database import Database
+from spam_filter.graph import GraphClient
+from spam_filter.models import DeletedSenderCandidate, DeletedSenderSample, FinalDecision
+from spam_filter.providers import ProviderAllowlist
+
+
+class SpamFilterService:
+    def __init__(
+        self,
+        settings: Settings,
+        db: Database,
+        graph: GraphClient,
+        classifier: OpenAIEmailClassifier,
+        policy: DecisionPolicy,
+    ) -> None:
+        self.settings = settings
+        self.db = db
+        self.graph = graph
+        self.classifier = classifier
+        self.policy = policy
+
+    @classmethod
+    def create(cls, settings: Settings) -> "SpamFilterService":
+        db = Database(settings.database_path)
+        providers = ProviderAllowlist.from_file(settings.provider_allowlist_path)
+        return cls(
+            settings=settings,
+            db=db,
+            graph=GraphClient(settings),
+            classifier=OpenAIEmailClassifier(settings),
+            policy=DecisionPolicy(settings, providers),
+        )
+
+    async def process_message(self, message_id: str) -> dict:
+        if self.db.is_processed(message_id):
+            return {"status": "already_processed", "message_id": message_id}
+
+        message = await self.graph.get_message(message_id)
+        junk_folder_id = await self.graph.get_folder_id("junkemail")
+        if message.parent_folder_id != junk_folder_id:
+            return {"status": "ignored_not_junk", "message_id": message_id}
+
+        if self.db.is_blocked_sender(message.sender_email):
+            final_decision = self.policy.apply(
+                message=message,
+                model_decision=fallback_junk_decision(self.settings, "Blocked sender."),
+                is_blocked_sender=True,
+            )
+        else:
+            try:
+                model_decision = await self.classifier.classify(message)
+                final_decision = self.policy.apply(message, model_decision)
+            except Exception as exc:  # Keep mail in Junk on any classifier failure.
+                final_decision = fallback_junk_decision(
+                    self.settings,
+                    f"Classifier failed safely: {type(exc).__name__}.",
+                )
+
+        await self._apply_action(message.id, final_decision)
+        subject_hash = hashlib.sha256(message.subject.encode("utf-8")).hexdigest()
+        self.db.record_decision(message.id, message.sender_email, subject_hash, final_decision)
+        self.db.record_processed(
+            message.id,
+            message.internet_message_id,
+            message.sender_email,
+            final_decision,
+        )
+        return {
+            "status": "processed",
+            "message_id": message.id,
+            "sender_email": message.sender_email,
+            "decision": {
+                "classification": final_decision.classification,
+                "confidence": final_decision.confidence,
+                "action": final_decision.action,
+                "reason": final_decision.reason,
+            },
+        }
+
+    async def rescan_junk(self, top: int = 25) -> list[dict]:
+        messages = await self.graph.list_messages_in_folder("junkemail", top=top)
+        results = []
+        for message in messages:
+            results.append(await self.process_message(message.id))
+        return results
+
+    async def create_subscription(self) -> dict:
+        payload = await self.graph.create_subscription()
+        self.db.upsert_subscription(
+            payload["id"],
+            payload.get("resource", self.settings.graph_subscription_resource),
+            payload["expirationDateTime"],
+        )
+        return payload
+
+    async def renew_known_subscriptions(self) -> list[dict]:
+        renewed = []
+        for subscription in self.db.subscriptions():
+            payload = await self.graph.renew_subscription(subscription["subscription_id"])
+            self.db.upsert_subscription(
+                payload["id"],
+                payload.get("resource", subscription["resource"]),
+                payload["expirationDateTime"],
+            )
+            renewed.append(payload)
+        return renewed
+
+    async def deleted_sender_candidates(self, top: int = 50) -> list[DeletedSenderCandidate]:
+        messages = await self.graph.list_messages_in_folder("deleteditems", top=top)
+        grouped: dict[str, DeletedSenderCandidate] = {}
+        for message in messages:
+            sender = message.sender_email
+            if not sender:
+                continue
+            sample = DeletedSenderSample(
+                message_id=message.id,
+                subject=message.subject,
+                received_at=message.received_at,
+            )
+            if sender not in grouped:
+                grouped[sender] = DeletedSenderCandidate(
+                    sender_email=sender,
+                    sender_name=message.sender_name,
+                    message_count=1,
+                    already_blocked=self.db.is_blocked_sender(sender),
+                    samples=[sample],
+                )
+                continue
+
+            candidate = grouped[sender]
+            candidate.message_count += 1
+            if len(candidate.samples) < 3:
+                candidate.samples.append(sample)
+
+        return sorted(grouped.values(), key=lambda item: item.message_count, reverse=True)
+
+    def block_reviewed_senders(self, senders: list[str], note: str = "") -> list[dict]:
+        for sender in senders:
+            self.db.add_blocked_sender(sender, source="deleted_items_review", note=note)
+        return self.db.list_blocked_senders()
+
+    async def _apply_action(self, message_id: str, decision: FinalDecision) -> None:
+        if decision.action == "move_to_inbox":
+            inbox_folder_id = await self.graph.get_folder_id("inbox")
+            await self.graph.move_message(message_id, inbox_folder_id)
+        elif decision.action == "move_to_deleted":
+            deleted_folder_id = await self.graph.get_folder_id("deleteditems")
+            await self.graph.move_message(message_id, deleted_folder_id)

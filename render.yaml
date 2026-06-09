@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: outlook-ai-spam-filter
+    env: docker
+    plan: starter
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_MODEL
+        value: gpt-5.4-nano
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_PATH
+        value: /var/data/spam_filter.sqlite3
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MS_TENANT_ID
+        sync: false
+      - key: MS_CLIENT_ID
+        sync: false
+      - key: MS_CLIENT_SECRET
+        sync: false
+      - key: MS_REFRESH_TOKEN
+        sync: false
+      - key: GRAPH_NOTIFICATION_URL
+        sync: false
+      - key: GRAPH_CLIENT_STATE
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+    disk:
+      name: spam-filter-data
+      mountPath: /var/data
+      sizeGB: 1
