@@ -64,10 +64,11 @@ class GraphClient:
         token = await self.get_access_token()
         headers = kwargs.pop("headers", {})
         headers["Authorization"] = f"Bearer {token}"
+        url = path if path.startswith("https://") else f"{GRAPH_BASE_URL}{path}"
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.request(
                 method,
-                f"{GRAPH_BASE_URL}{path}",
+                url,
                 headers=headers,
                 **kwargs,
             )
@@ -135,6 +136,44 @@ class GraphClient:
             },
         )
         return [self._message_from_payload(item) for item in payload.get("value", [])]
+
+    async def list_all_messages_in_folder(
+        self,
+        well_known_name: str,
+        page_size: int = 25,
+        max_messages: int = 500,
+    ) -> list[EmailMessage]:
+        select = ",".join(
+            [
+                "id",
+                "internetMessageId",
+                "parentFolderId",
+                "subject",
+                "receivedDateTime",
+                "bodyPreview",
+                "body",
+                "from",
+                "sender",
+                "hasAttachments",
+            ]
+        )
+        page_size = max(1, min(page_size, 100))
+        max_messages = max(1, max_messages)
+        url_or_path = f"{self.settings.graph_user_path}/mailFolders/{well_known_name}/messages"
+        params: dict[str, str] | None = {
+            "$top": str(page_size),
+            "$orderby": "receivedDateTime desc",
+            "$select": select,
+        }
+        messages: list[EmailMessage] = []
+
+        while url_or_path and len(messages) < max_messages:
+            payload = await self.request("GET", url_or_path, params=params)
+            messages.extend(self._message_from_payload(item) for item in payload.get("value", []))
+            url_or_path = payload.get("@odata.nextLink")
+            params = None
+
+        return messages[:max_messages]
 
     async def move_message(self, message_id: str, destination: str) -> dict:
         return await self.request(

@@ -62,6 +62,7 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `POST /admin/subscriptions/ensure`
 - `POST /admin/subscriptions/renew`
 - `POST /admin/rescan-junk`
+- `POST /admin/rescan-junk-all`
 - `GET /admin/decisions`
 - `GET /admin/deleted-senders/candidates`
 - `POST /admin/deleted-senders/block`
@@ -127,6 +128,14 @@ Process recent Junk Email manually:
 Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk?top=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
 ```
 
+Process older Junk Email in batches:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Use this carefully because each unprocessed message may call the OpenAI API. On free Render, large scans can be slow or time out. Start with `max_messages=50`, then increase if needed.
+
 Review recent decisions:
 
 ```powershell
@@ -168,6 +177,8 @@ This repo includes a GitHub Actions workflow at `.github/workflows/ensure-graph-
 ```text
 POST /admin/subscriptions/ensure
 ```
+
+This workflow renews or recreates the Microsoft Graph webhook subscription. It does not rotate the Microsoft refresh token. If the Microsoft refresh token is revoked, expires, or is invalidated by account/security changes, generate a new `MS_REFRESH_TOKEN` and update it in Render.
 
 To enable it, add these GitHub repository secrets:
 

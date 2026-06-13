@@ -94,6 +94,21 @@ class SpamFilterService:
             results.append(await self.process_message(message.id))
         return results
 
+    async def rescan_all_junk(self, max_messages: int = 500, page_size: int = 25) -> dict:
+        messages = await self.graph.list_all_messages_in_folder(
+            "junkemail",
+            page_size=page_size,
+            max_messages=max_messages,
+        )
+        results = []
+        for message in messages:
+            results.append(await self.process_message(message.id))
+        return {
+            "requested_max_messages": max_messages,
+            "found_messages": len(messages),
+            "processed_results": results,
+        }
+
     async def create_subscription(self) -> dict:
         payload = await self.graph.create_subscription()
         self.db.upsert_subscription(

@@ -61,6 +61,12 @@ class FakeGraph:
             message("3", "spam1@example.com"),
         ][:top]
 
+    async def list_all_messages_in_folder(self, well_known_name: str, page_size: int = 25, max_messages: int = 500):
+        self.folder = well_known_name
+        self.page_size = page_size
+        self.max_messages = max_messages
+        return [message("1", "spam1@example.com"), message("2", "spam2@example.com")][:max_messages]
+
     async def create_subscription(self):
         self.created += 1
         return {
@@ -143,6 +149,30 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["action"], "renewed")
             self.assertEqual(graph.renewed, 1)
             self.assertEqual(db.subscriptions()[0]["subscription_id"], "existing-subscription")
+
+    async def test_rescan_all_junk_uses_paged_folder_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            graph = FakeGraph()
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            async def process_message(message_id: str):
+                return {"status": "processed", "message_id": message_id}
+
+            service.process_message = process_message
+            result = await service.rescan_all_junk(max_messages=2, page_size=1)
+
+            self.assertEqual(graph.folder, "junkemail")
+            self.assertEqual(graph.page_size, 1)
+            self.assertEqual(result["found_messages"], 2)
+            self.assertEqual([item["message_id"] for item in result["processed_results"]], ["1", "2"])
 
 
 if __name__ == "__main__":

@@ -131,6 +131,11 @@ async def rescan_junk(top: int = 25) -> list[dict]:
     return await service.rescan_junk(top=top)
 
 
+@app.post("/admin/rescan-junk-all", dependencies=[Depends(require_admin)])
+async def rescan_all_junk(max_messages: int = 500, page_size: int = 25) -> dict:
+    return await service.rescan_all_junk(max_messages=max_messages, page_size=page_size)
+
+
 @app.get("/admin/decisions", dependencies=[Depends(require_admin)])
 def recent_decisions(limit: int = 50) -> list[dict]:
     return service.db.recent_decisions(limit=limit)
