@@ -118,14 +118,6 @@ Use `POST /admin/subscriptions/ensure` for automation. It creates a subscription
 
 ## Operations
 
-Set local PowerShell variables before running admin commands:
-
-```powershell
-cd "C:\Users\nafer\github repo\Spam Filter"
-$serviceUrl = "https://outlook-ai-spam-filter.onrender.com"
-$adminToken = ((Get-Content .env | Where-Object { $_ -match '^ADMIN_TOKEN=' }) -replace '^ADMIN_TOKEN=', '').Trim()
-```
-
 ## Frequent Manual Workflows
 
 Run these commands in **PowerShell** from:
@@ -175,6 +167,18 @@ Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all
 ```
 
 Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
+
+### 4. Back Up App-Blocked Senders
+
+Render Free does not provide persistent disk storage, so keep a local CSV backup after blocking senders:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers @{ "X-Admin-Token" = $adminToken } |
+    Select-Object sender_email, created_at, source, note |
+    Export-Csv -NoTypeInformation -Encoding UTF8 -Path ".\blocked-senders-backup.csv"
+```
+
+If the app is turned off or Render loses its SQLite database, open `blocked-senders-backup.csv` to see the senders that were blocked by the app. Outlook still requires adding them to its native blocked senders list one by one.
 
 Check service health:
 
