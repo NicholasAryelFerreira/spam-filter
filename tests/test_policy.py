@@ -65,6 +65,25 @@ class PolicyTests(unittest.TestCase):
         )
         self.assertEqual(decision.action, "move_to_inbox")
 
+    def test_legit_anthropic_code_from_provider_file_can_move_to_inbox(self) -> None:
+        policy = DecisionPolicy(settings(), ProviderAllowlist.from_file("providers.json"))
+        decision = policy.apply(
+            message(
+                "login@mail.anthropic.com",
+                "Your Anthropic verification code",
+                "Your sign in code is 123456.",
+                {"Authentication-Results": "spf=pass dkim=pass dmarc=pass"},
+            ),
+            ClassificationDecision(
+                classification="legit_login_code",
+                confidence=0.96,
+                reason_codes=["login_code"],
+                safe_summary="Legitimate Anthropic login code.",
+                recommended_action="move_to_inbox",
+            ),
+        )
+        self.assertEqual(decision.action, "move_to_inbox")
+
     def test_non_provider_code_stays_in_junk_even_if_model_likes_it(self) -> None:
         policy = DecisionPolicy(settings(), ProviderAllowlist.default())
         decision = policy.apply(

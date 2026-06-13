@@ -16,7 +16,176 @@
         "sign in",
         "authentication"
       ]
+    },
+    {
+      "name": "Anthropic",
+      "domains": [
+        "anthropic.com",
+        "mail.anthropic.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "one-time",
+        "passcode"
+      ]
+    },
+    {
+      "name": "Microsoft",
+      "domains": [
+        "microsoft.com",
+        "accountprotection.microsoft.com",
+        "security.microsoft.com",
+        "mail.microsoft.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "security code",
+        "single-use"
+      ]
+    },
+    {
+      "name": "Google",
+      "domains": [
+        "google.com",
+        "accounts.google.com",
+        "mail.google.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "security code"
+      ]
+    },
+    {
+      "name": "GitHub",
+      "domains": [
+        "github.com",
+        "mail.github.com",
+        "noreply.github.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "two-factor"
+      ]
+    },
+    {
+      "name": "Apple",
+      "domains": [
+        "apple.com",
+        "idmsa.apple.com",
+        "email.apple.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "two-factor"
+      ]
+    },
+    {
+      "name": "Amazon",
+      "domains": [
+        "amazon.com",
+        "account-update.amazon.com",
+        "signin.aws.amazon.com",
+        "aws.amazon.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "one-time password",
+        "otp"
+      ]
+    },
+    {
+      "name": "PayPal",
+      "domains": [
+        "paypal.com",
+        "mail.paypal.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "security code"
+      ]
+    },
+    {
+      "name": "Stripe",
+      "domains": [
+        "stripe.com",
+        "mail.stripe.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "two-step"
+      ]
+    },
+    {
+      "name": "Cloudflare",
+      "domains": [
+        "cloudflare.com",
+        "email.cloudflare.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "two-factor"
+      ]
+    },
+    {
+      "name": "Render",
+      "domains": [
+        "render.com",
+        "mail.render.com"
+      ],
+      "login_code_terms": [
+        "code",
+        "verification",
+        "verify",
+        "login",
+        "sign in",
+        "authentication",
+        "one-time"
+      ]
     }
   ]
 }
-

@@ -57,6 +57,13 @@ Do not commit `.env`. The repository ignores `.env`, local virtual environments,
 
 `OPENAI_CLASSIFICATION_PROMPT` controls the model's classification instructions. Keep the structured-output labels intact: `legit_login_code`, `junk_keep`, `spam_harmful`, `move_to_inbox`, `keep_in_junk`, and `move_to_deleted`.
 
+Login-code emails move to Inbox only when both checks pass:
+
+- the model classifies the message as `legit_login_code` with enough confidence;
+- the sender matches a trusted provider in `providers.json`.
+
+To trust more login-code senders, update `providers.json`. Do not rely only on prompt wording for new providers.
+
 Local `.env` and Render environment variables are separate:
 
 - Local `.env` controls the app only when you run it on your own computer.
