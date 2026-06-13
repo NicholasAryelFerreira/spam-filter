@@ -149,6 +149,21 @@ class SpamFilterService:
             self.db.add_blocked_sender(sender, source="deleted_items_review", note=note)
         return self.db.list_blocked_senders()
 
+    async def block_all_deleted_senders(self, top: int = 50, note: str = "") -> dict:
+        candidates = await self.deleted_sender_candidates(top=top)
+        senders = [
+            candidate.sender_email
+            for candidate in candidates
+            if candidate.sender_email and not candidate.already_blocked
+        ]
+        for sender in senders:
+            self.db.add_blocked_sender(sender, source="deleted_items_bulk_review", note=note)
+        return {
+            "blocked_count": len(senders),
+            "reviewed_candidate_count": len(candidates),
+            "blocked_senders": self.db.list_blocked_senders(),
+        }
+
     async def _apply_action(self, message_id: str, decision: FinalDecision) -> None:
         if decision.action == "move_to_inbox":
             inbox_folder_id = await self.graph.get_folder_id("inbox")

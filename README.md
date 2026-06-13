@@ -63,6 +63,7 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `GET /admin/decisions`
 - `GET /admin/deleted-senders/candidates`
 - `POST /admin/deleted-senders/block`
+- `POST /admin/deleted-senders/block-all`
 - `GET /admin/blocked-senders`
 - `DELETE /admin/blocked-senders/{sender_email}`
 

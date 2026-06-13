@@ -60,3 +60,9 @@ class BlockSendersRequest(BaseModel):
     senders: list[str] = Field(min_length=1)
     confirm_reviewed_deleted_items: bool
     note: str = ""
+
+
+class BlockAllDeletedSendersRequest(BaseModel):
+    confirm_reviewed_deleted_items: bool
+    top: int = Field(default=50, ge=1, le=500)
+    note: str = ""

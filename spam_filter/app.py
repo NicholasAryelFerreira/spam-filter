@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Qu
 from fastapi.responses import PlainTextResponse
 
 from spam_filter.config import get_settings
-from spam_filter.models import BlockSendersRequest
+from spam_filter.models import BlockAllDeletedSendersRequest, BlockSendersRequest
 from spam_filter.service import SpamFilterService
 
 settings = get_settings()
@@ -94,6 +94,16 @@ def block_deleted_senders(request: BlockSendersRequest) -> list[dict]:
             detail="Set confirm_reviewed_deleted_items=true after reviewing Deleted Items candidates.",
         )
     return service.block_reviewed_senders(request.senders, note=request.note)
+
+
+@app.post("/admin/deleted-senders/block-all", dependencies=[Depends(require_admin)])
+async def block_all_deleted_senders(request: BlockAllDeletedSendersRequest) -> dict:
+    if not request.confirm_reviewed_deleted_items:
+        raise HTTPException(
+            status_code=400,
+            detail="Set confirm_reviewed_deleted_items=true after reviewing Deleted Items candidates.",
+        )
+    return await service.block_all_deleted_senders(top=request.top, note=request.note)
 
 
 @app.get("/admin/blocked-senders", dependencies=[Depends(require_admin)])
