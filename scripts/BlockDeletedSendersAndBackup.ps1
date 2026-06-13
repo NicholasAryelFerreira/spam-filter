@@ -41,14 +41,22 @@ $blockResult = Invoke-RestMethod `
     -Body $body
 
 Write-Host "Refreshing local backup at $BackupPath..."
-Invoke-RestMethod `
+$blockedSenders = Invoke-RestMethod `
     -Method Get `
     -Uri "$ServiceUrl/admin/blocked-senders" `
-    -Headers $headers |
+    -Headers $headers
+
+$blockedSenderRows = @($blockedSenders) | Where-Object { $_.sender_email }
+if (-not $blockedSenderRows) {
+    throw "The app returned no blocked senders, so the backup CSV was not updated."
+}
+
+$blockedSenderRows |
     Select-Object sender_email, created_at, source, note |
     Export-Csv -NoTypeInformation -Encoding UTF8 -Path $BackupPath
 
 $blockedCount = $blockResult.blocked_count
 $reviewedCount = $blockResult.reviewed_candidate_count
 Write-Host "Done. Newly blocked: $blockedCount. Reviewed sender candidates: $reviewedCount."
+Write-Host "Backed up sender count: $($blockedSenderRows.Count)."
 Write-Host "Backup file: $((Resolve-Path -LiteralPath $BackupPath).Path)"

@@ -168,12 +168,13 @@ After reviewing Deleted Items, this blocks all unique sender email addresses fou
 
 Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
 
-### 4. Back Up App-Blocked Senders
+### 4. Refresh CSV Backup Only
 
 The script in step 3 already refreshes this backup. To refresh the local CSV without blocking new senders, run:
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers @{ "X-Admin-Token" = $adminToken } |
+$blockedSenders = Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers @{ "X-Admin-Token" = $adminToken }
+@($blockedSenders) | Where-Object { $_.sender_email } |
     Select-Object sender_email, created_at, source, note |
     Export-Csv -NoTypeInformation -Encoding UTF8 -Path ".\blocked-senders-backup.csv"
 ```
