@@ -126,6 +126,56 @@ $serviceUrl = "https://outlook-ai-spam-filter.onrender.com"
 $adminToken = ((Get-Content .env | Where-Object { $_ -match '^ADMIN_TOKEN=' }) -replace '^ADMIN_TOKEN=', '').Trim()
 ```
 
+## Frequent Manual Workflows
+
+Run these commands in **PowerShell** from:
+
+```powershell
+cd "C:\Users\nafer\github repo\Spam Filter"
+$serviceUrl = "https://outlook-ai-spam-filter.onrender.com"
+$adminToken = ((Get-Content .env | Where-Object { $_ -match '^ADMIN_TOKEN=' }) -replace '^ADMIN_TOKEN=', '').Trim()
+```
+
+### 1. Scan Current Junk Email
+
+This scans Junk Email and applies the app rules:
+
+- legitimate provider login codes move to Inbox;
+- clearly harmful spam moves to Deleted Items;
+- everything uncertain stays in Junk Email.
+
+Start with a small scan:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk?top=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+For a larger scan of current and older Junk Email:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Use larger scans carefully because each unprocessed message may call the OpenAI API. On free Render, large scans can be slow or time out. Start with `max_messages=50`, then increase if needed.
+
+### 2. Review Deleted Items
+
+This reviews sender candidates from the actual Outlook Deleted Items folder, including emails the app moved there and emails you manually moved or deleted there:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+### 3. Block Deleted Items Senders
+
+After reviewing Deleted Items, this blocks all unique sender email addresses found in that Deleted Items scan:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"confirm_reviewed_deleted_items":true,"max_messages":500,"page_size":25,"note":"Bulk reviewed Deleted Items"}'
+```
+
+Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
+
 Check service health:
 
 ```powershell
