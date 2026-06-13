@@ -48,6 +48,10 @@ def message(message_id: str, sender: str) -> EmailMessage:
 
 
 class FakeGraph:
+    def __init__(self) -> None:
+        self.created = 0
+        self.renewed = 0
+
     async def list_messages_in_folder(self, well_known_name: str, top: int = 25):
         self.folder = well_known_name
         self.top = top
@@ -56,6 +60,22 @@ class FakeGraph:
             message("2", "spam2@example.com"),
             message("3", "spam1@example.com"),
         ][:top]
+
+    async def create_subscription(self):
+        self.created += 1
+        return {
+            "id": "created-subscription",
+            "resource": "me/messages",
+            "expirationDateTime": "2026-06-18T12:00:00Z",
+        }
+
+    async def renew_subscription(self, subscription_id: str):
+        self.renewed += 1
+        return {
+            "id": subscription_id,
+            "resource": "me/messages",
+            "expirationDateTime": "2026-06-18T12:00:00Z",
+        }
 
 
 class FakeClassifier:
@@ -84,6 +104,45 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["blocked_count"], 1)
             self.assertTrue(db.is_blocked_sender("spam1@example.com"))
             self.assertTrue(db.is_blocked_sender("spam2@example.com"))
+
+    async def test_ensure_subscription_creates_when_none_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            graph = FakeGraph()
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            result = await service.ensure_subscription()
+
+            self.assertEqual(result["action"], "created")
+            self.assertEqual(graph.created, 1)
+            self.assertEqual(len(db.subscriptions()), 1)
+
+    async def test_ensure_subscription_renews_when_subscription_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            db.upsert_subscription("existing-subscription", "me/messages", "2026-06-14T12:00:00Z")
+            graph = FakeGraph()
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            result = await service.ensure_subscription()
+
+            self.assertEqual(result["action"], "renewed")
+            self.assertEqual(graph.renewed, 1)
+            self.assertEqual(db.subscriptions()[0]["subscription_id"], "existing-subscription")
 
 
 if __name__ == "__main__":

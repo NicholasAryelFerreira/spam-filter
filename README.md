@@ -59,6 +59,7 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `GET /health`
 - `GET /admin/diagnostics`
 - `POST /admin/subscriptions`
+- `POST /admin/subscriptions/ensure`
 - `POST /admin/subscriptions/renew`
 - `POST /admin/rescan-junk`
 - `GET /admin/decisions`
@@ -89,6 +90,104 @@ Graph subscriptions expire and must be renewed:
 ```powershell
 Invoke-RestMethod -Method Post -Uri "https://your-service.example.com/admin/subscriptions/renew" -Headers @{ "X-Admin-Token" = "<admin token>" }
 ```
+
+Use `POST /admin/subscriptions/ensure` for automation. It creates a subscription when none is recorded and renews existing subscriptions when they are present.
+
+## Operations
+
+Set local PowerShell variables before running admin commands:
+
+```powershell
+cd "C:\Users\nafer\github repo\Spam Filter"
+$serviceUrl = "https://outlook-ai-spam-filter.onrender.com"
+$adminToken = ((Get-Content .env | Where-Object { $_ -match '^ADMIN_TOKEN=' }) -replace '^ADMIN_TOKEN=', '').Trim()
+```
+
+Check service health:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/health" | ConvertTo-Json -Depth 5
+```
+
+Check configuration and Microsoft Graph access:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/diagnostics" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
+Create or renew the Graph subscription:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/subscriptions/ensure" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
+Process recent Junk Email manually:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk?top=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Review recent decisions:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/decisions?limit=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Review Deleted Items sender candidates:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates?top=50" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Block all senders from the reviewed Deleted Items batch:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"confirm_reviewed_deleted_items":true,"top":50,"note":"Bulk reviewed Deleted Items"}'
+```
+
+List app-blocked senders:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
+Unblock one sender:
+
+```powershell
+Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/blocked-senders/spam@example.com" -Headers @{ "X-Admin-Token" = $adminToken }
+```
+
+Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list.
+
+## Subscription Automation
+
+Microsoft Graph Outlook message subscriptions cannot last forever. The maximum lifetime for Outlook message subscriptions is under seven days, so the app must renew or recreate the subscription regularly.
+
+This repo includes a GitHub Actions workflow at `.github/workflows/ensure-graph-subscription.yml`. It runs daily and calls:
+
+```text
+POST /admin/subscriptions/ensure
+```
+
+To enable it, add these GitHub repository secrets:
+
+```text
+SPAM_FILTER_SERVICE_URL=https://outlook-ai-spam-filter.onrender.com
+SPAM_FILTER_ADMIN_TOKEN=<your ADMIN_TOKEN>
+```
+
+In GitHub:
+
+1. Open the repository.
+2. Go to **Settings**.
+3. Go to **Secrets and variables**.
+4. Click **Actions**.
+5. Click **New repository secret**.
+6. Add `SPAM_FILTER_SERVICE_URL`.
+7. Add `SPAM_FILTER_ADMIN_TOKEN`.
+8. Go to **Actions**.
+9. Select **Ensure Microsoft Graph subscription**.
+10. Click **Run workflow** once to test it.
 
 ## Tests
 

@@ -106,7 +106,10 @@ class SpamFilterService:
     async def renew_known_subscriptions(self) -> list[dict]:
         renewed = []
         for subscription in self.db.subscriptions():
-            payload = await self.graph.renew_subscription(subscription["subscription_id"])
+            try:
+                payload = await self.graph.renew_subscription(subscription["subscription_id"])
+            except Exception:
+                payload = await self.graph.create_subscription()
             self.db.upsert_subscription(
                 payload["id"],
                 payload.get("resource", subscription["resource"]),
@@ -114,6 +117,20 @@ class SpamFilterService:
             )
             renewed.append(payload)
         return renewed
+
+    async def ensure_subscription(self) -> dict:
+        subscriptions = self.db.subscriptions()
+        if not subscriptions:
+            payload = await self.graph.create_subscription()
+            self.db.upsert_subscription(
+                payload["id"],
+                payload.get("resource", self.settings.graph_subscription_resource),
+                payload["expirationDateTime"],
+            )
+            return {"action": "created", "subscription": payload}
+
+        renewed = await self.renew_known_subscriptions()
+        return {"action": "renewed", "subscriptions": renewed}
 
     async def deleted_sender_candidates(self, top: int = 50) -> list[DeletedSenderCandidate]:
         messages = await self.graph.list_messages_in_folder("deleteditems", top=top)

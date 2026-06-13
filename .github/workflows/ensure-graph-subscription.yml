@@ -1,0 +1,25 @@
+name: Ensure Microsoft Graph subscription
+
+on:
+  schedule:
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  ensure-subscription:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Renew or create subscription
+        env:
+          SERVICE_URL: ${{ secrets.SPAM_FILTER_SERVICE_URL }}
+          ADMIN_TOKEN: ${{ secrets.SPAM_FILTER_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SERVICE_URL}" ] || [ -z "${ADMIN_TOKEN}" ]; then
+            echo "SPAM_FILTER_SERVICE_URL and SPAM_FILTER_ADMIN_TOKEN repository secrets are required."
+            exit 1
+          fi
+          curl --fail-with-body \
+            --request POST \
+            --header "X-Admin-Token: ${ADMIN_TOKEN}" \
+            "${SERVICE_URL%/}/admin/subscriptions/ensure"

@@ -111,6 +111,21 @@ async def renew_subscriptions() -> list[dict]:
     return await service.renew_known_subscriptions()
 
 
+@app.post("/admin/subscriptions/ensure", dependencies=[Depends(require_admin)])
+async def ensure_subscription() -> dict:
+    try:
+        return await service.ensure_subscription()
+    except GraphError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "graph_status_code": exc.status_code,
+                "graph_response": exc.response_text,
+            },
+        ) from exc
+
+
 @app.post("/admin/rescan-junk", dependencies=[Depends(require_admin)])
 async def rescan_junk(top: int = 25) -> list[dict]:
     return await service.rescan_junk(top=top)
