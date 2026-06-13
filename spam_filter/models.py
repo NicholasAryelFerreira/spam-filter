@@ -62,6 +62,11 @@ class BlockSendersRequest(BaseModel):
     note: str = ""
 
 
+class BlockSenderPatternsRequest(BaseModel):
+    patterns: list[str] = Field(min_length=1)
+    note: str = ""
+
+
 class BlockAllDeletedSendersRequest(BaseModel):
     confirm_reviewed_deleted_items: bool
     max_messages: int = Field(default=500, ge=1, le=5000)

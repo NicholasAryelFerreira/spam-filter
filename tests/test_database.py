@@ -20,6 +20,19 @@ class DatabaseTests(unittest.TestCase):
             db.remove_blocked_sender("spam@example.com")
             self.assertFalse(db.is_blocked_sender("spam@example.com"))
 
+    def test_blocked_sender_pattern_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db = Database(str(Path(temp_dir) / "test.sqlite3"))
+            self.assertIsNone(db.matching_blocked_sender_pattern("spam@123skystoria.online"))
+            db.add_blocked_sender_pattern("SkyStoria", source="test", note="pattern")
+            match = db.matching_blocked_sender_pattern("spam@123skystoria.online")
+            self.assertIsNotNone(match)
+            self.assertEqual(match["pattern"], "skystoria")
+            records = db.list_blocked_sender_patterns()
+            self.assertEqual(records[0]["pattern"], "skystoria")
+            db.remove_blocked_sender_pattern("skystoria")
+            self.assertIsNone(db.matching_blocked_sender_pattern("spam@123skystoria.online"))
+
     def test_processed_message_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db = Database(str(Path(temp_dir) / "test.sqlite3"))

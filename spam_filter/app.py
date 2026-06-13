@@ -7,7 +7,11 @@ from fastapi.responses import PlainTextResponse
 
 from spam_filter.config import get_settings
 from spam_filter.graph import GraphError
-from spam_filter.models import BlockAllDeletedSendersRequest, BlockSendersRequest
+from spam_filter.models import (
+    BlockAllDeletedSendersRequest,
+    BlockSenderPatternsRequest,
+    BlockSendersRequest,
+)
 from spam_filter.service import SpamFilterService
 
 settings = get_settings()
@@ -162,6 +166,25 @@ def block_deleted_senders(request: BlockSendersRequest) -> list[dict]:
             detail="Set confirm_reviewed_deleted_items=true after reviewing Deleted Items candidates.",
         )
     return service.block_reviewed_senders(request.senders, note=request.note)
+
+
+@app.post("/admin/blocked-sender-patterns", dependencies=[Depends(require_admin)])
+def block_sender_patterns(request: BlockSenderPatternsRequest) -> list[dict]:
+    try:
+        return service.block_sender_patterns(request.patterns, note=request.note)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/admin/blocked-sender-patterns", dependencies=[Depends(require_admin)])
+def list_blocked_sender_patterns() -> list[dict]:
+    return service.db.list_blocked_sender_patterns()
+
+
+@app.delete("/admin/blocked-sender-patterns/{pattern}", dependencies=[Depends(require_admin)])
+def unblock_sender_pattern(pattern: str) -> dict:
+    service.db.remove_blocked_sender_pattern(pattern)
+    return {"removed": pattern.lower()}
 
 
 @app.post("/admin/deleted-senders/block-all", dependencies=[Depends(require_admin)])

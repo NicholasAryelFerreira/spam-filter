@@ -46,17 +46,29 @@ class SpamFilterService:
             return {"status": "already_processed", "message_id": message_id}
 
         message = await self.graph.get_message(message_id)
-        junk_folder_id = await self.graph.get_folder_id("junkemail")
-        if message.parent_folder_id != junk_folder_id:
-            return {"status": "ignored_not_junk", "message_id": message_id}
-
-        if self.db.is_blocked_sender(message.sender_email):
+        blocked_pattern = self.db.matching_blocked_sender_pattern(message.sender_email)
+        if self.db.is_blocked_sender(message.sender_email) or blocked_pattern:
             final_decision = self.policy.apply(
                 message=message,
                 model_decision=fallback_junk_decision(self.settings, "Blocked sender."),
                 is_blocked_sender=True,
             )
+            if blocked_pattern:
+                final_decision = FinalDecision(
+                    classification=final_decision.classification,
+                    confidence=final_decision.confidence,
+                    action=final_decision.action,
+                    reason=(
+                        "Sender email matched blocked pattern "
+                        f"'{blocked_pattern['pattern']}'."
+                    ),
+                    model=final_decision.model,
+                )
         else:
+            junk_folder_id = await self.graph.get_folder_id("junkemail")
+            if message.parent_folder_id != junk_folder_id:
+                return {"status": "ignored_not_junk", "message_id": message_id}
+
             try:
                 model_decision = await self.classifier.classify(message)
                 final_decision = self.policy.apply(message, model_decision)
@@ -66,7 +78,7 @@ class SpamFilterService:
                     f"Classifier failed safely: {type(exc).__name__}.",
                 )
 
-        await self._apply_action(message.id, final_decision)
+        await self._apply_action(message, final_decision)
         subject_hash = hashlib.sha256(message.subject.encode("utf-8")).hexdigest()
         self.db.record_decision(message.id, message.sender_email, subject_hash, final_decision)
         self.db.record_processed(
@@ -196,6 +208,11 @@ class SpamFilterService:
             self.db.add_blocked_sender(sender, source="deleted_items_review", note=note)
         return self.db.list_blocked_senders()
 
+    def block_sender_patterns(self, patterns: list[str], note: str = "") -> list[dict]:
+        for pattern in patterns:
+            self.db.add_blocked_sender_pattern(pattern, source="manual_pattern_review", note=note)
+        return self.db.list_blocked_sender_patterns()
+
     async def block_all_deleted_senders(
         self,
         max_messages: int = 500,
@@ -221,10 +238,12 @@ class SpamFilterService:
             "blocked_senders": self.db.list_blocked_senders(),
         }
 
-    async def _apply_action(self, message_id: str, decision: FinalDecision) -> None:
+    async def _apply_action(self, message, decision: FinalDecision) -> None:
         if decision.action == "move_to_inbox":
             inbox_folder_id = await self.graph.get_folder_id("inbox")
-            await self.graph.move_message(message_id, inbox_folder_id)
+            if message.parent_folder_id != inbox_folder_id:
+                await self.graph.move_message(message.id, inbox_folder_id)
         elif decision.action == "move_to_deleted":
             deleted_folder_id = await self.graph.get_folder_id("deleteditems")
-            await self.graph.move_message(message_id, deleted_folder_id)
+            if message.parent_folder_id != deleted_folder_id:
+                await self.graph.move_message(message.id, deleted_folder_id)

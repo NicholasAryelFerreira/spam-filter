@@ -60,6 +60,13 @@ class Database:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS blocked_sender_patterns (
+                    pattern TEXT PRIMARY KEY,
+                    source TEXT NOT NULL,
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS graph_subscriptions (
                     subscription_id TEXT PRIMARY KEY,
                     resource TEXT NOT NULL,
@@ -180,6 +187,57 @@ class Database:
                 """
                 SELECT sender_email, created_at, source, note
                 FROM blocked_senders
+                ORDER BY created_at DESC
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def add_blocked_sender_pattern(self, pattern: str, source: str, note: str = "") -> None:
+        normalized = pattern.strip().lower()
+        if len(normalized) < 3:
+            raise ValueError("pattern must be at least 3 characters")
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO blocked_sender_patterns (pattern, source, note, created_at)
+                VALUES (?, ?, ?, COALESCE(
+                    (SELECT created_at FROM blocked_sender_patterns WHERE pattern = ?),
+                    ?
+                ))
+                """,
+                (normalized, source, note, normalized, datetime.now(UTC).isoformat()),
+            )
+
+    def remove_blocked_sender_pattern(self, pattern: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "DELETE FROM blocked_sender_patterns WHERE pattern = ?",
+                (pattern.strip().lower(),),
+            )
+
+    def matching_blocked_sender_pattern(self, sender_email: str) -> dict | None:
+        normalized = sender_email.strip().lower()
+        if not normalized:
+            return None
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT pattern, created_at, source, note
+                FROM blocked_sender_patterns
+                ORDER BY LENGTH(pattern) DESC, created_at DESC
+                """
+            ).fetchall()
+            for row in rows:
+                if row["pattern"] in normalized:
+                    return dict(row)
+        return None
+
+    def list_blocked_sender_patterns(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT pattern, created_at, source, note
+                FROM blocked_sender_patterns
                 ORDER BY created_at DESC
                 """
             ).fetchall()

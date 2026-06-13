@@ -5,7 +5,8 @@ A cloud-ready FastAPI service that monitors Outlook Junk Email with Microsoft Gr
 ## Features
 
 - Watches Outlook mail through Microsoft Graph webhooks.
-- Processes only messages currently in Junk Email.
+- Uses AI classification only for messages currently in Junk Email.
+- Moves app-blocked exact senders and sender-address patterns to Deleted Items when the app sees them.
 - Moves verified provider login-code emails, such as legitimate OpenAI sign-in codes, to Inbox.
 - Moves clearly harmful spam to Deleted Items.
 - Leaves uncertain or ordinary messages in Junk Email.
@@ -98,6 +99,9 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `POST /admin/deleted-senders/block-all`
 - `GET /admin/blocked-senders`
 - `DELETE /admin/blocked-senders/{sender_email}`
+- `POST /admin/blocked-sender-patterns`
+- `GET /admin/blocked-sender-patterns`
+- `DELETE /admin/blocked-sender-patterns/{pattern}`
 
 ## Deployment
 
@@ -173,7 +177,7 @@ After reviewing Deleted Items, this blocks all unique sender email addresses fou
 .\scripts\BlockDeletedSendersAndBackup.ps1 -MaxMessages 500 -PageSize 25
 ```
 
-Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
+Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When the app is running and receives a notification for a blocked sender, it moves that message to Deleted Items.
 
 ### 4. Refresh CSV Backup Only
 
@@ -197,6 +201,28 @@ If Render restarts, redeploys, or loses the app's SQLite database, restore the a
 ```
 
 This reads `blocked-senders-backup.csv` from this repo folder and re-adds those sender addresses to the app's blocklist. The app must be running and reachable on Render.
+
+### 6. Block Sender Address Text
+
+To block any sender email address containing specific text, add a blocked sender pattern. This example blocks senders containing `skystoria`, such as `123skystoria`, `345skystoria`, or `skystoria.online`:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/blocked-sender-patterns" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"patterns":["skystoria"],"note":"Block skystoria sender addresses"}'
+```
+
+List blocked sender patterns:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-sender-patterns" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
+Remove one blocked sender pattern:
+
+```powershell
+Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/blocked-sender-patterns/skystoria" -Headers @{ "X-Admin-Token" = $adminToken }
+```
+
+Exact blocked senders and blocked sender patterns are checked before the Junk Email-only AI classification rule. When the app is running and receives the Microsoft Graph notification, matching messages are moved to Deleted Items even if Outlook first places them outside Junk Email. This app cannot reject email at the mail-server level or stop a sender from transmitting to Microsoft; it acts after the message arrives.
 
 Check service health:
 
@@ -278,7 +304,9 @@ Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/blocked-senders/spam@ex
 
 The bulk Deleted Items block scans Outlook's real Deleted Items folder, including messages the app moved there and messages you manually moved or deleted there. It blocks unique sender email addresses found in that scan, up to `max_messages`.
 
-Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
+Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When the app is running and receives a notification for a blocked sender, it moves that message to Deleted Items.
+
+Blocked sender patterns are also stored in this app's SQLite database. When a sender email address contains a blocked pattern, such as `skystoria`, the app moves that message to Deleted Items from any folder it processes.
 
 On Render Free, the app's SQLite database can be lost on restart or redeploy because there is no persistent disk. For durable app-blocked senders and decision history, use a persistent disk or external database.
 

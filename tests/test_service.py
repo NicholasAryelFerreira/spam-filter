@@ -33,11 +33,11 @@ def settings(database_path: str) -> Settings:
     )
 
 
-def message(message_id: str, sender: str) -> EmailMessage:
+def message(message_id: str, sender: str, parent_folder_id: str = "deleted") -> EmailMessage:
     return EmailMessage(
         id=message_id,
         internet_message_id=f"<{message_id}@example.test>",
-        parent_folder_id="deleted",
+        parent_folder_id=parent_folder_id,
         sender_email=sender,
         sender_name=sender,
         subject=f"Deleted sample {message_id}",
@@ -52,6 +52,8 @@ class FakeGraph:
     def __init__(self) -> None:
         self.created = 0
         self.renewed = 0
+        self.messages = {}
+        self.moved = []
 
     async def list_messages_in_folder(self, well_known_name: str, top: int = 25):
         self.folder = well_known_name
@@ -67,6 +69,20 @@ class FakeGraph:
         self.page_size = page_size
         self.max_messages = max_messages
         return [message("1", "spam1@example.com"), message("2", "spam2@example.com")][:max_messages]
+
+    async def get_message(self, message_id: str):
+        return self.messages[message_id]
+
+    async def get_folder_id(self, well_known_name: str):
+        return {
+            "inbox": "inbox",
+            "junkemail": "junk",
+            "deleteditems": "deleted",
+        }[well_known_name]
+
+    async def move_message(self, message_id: str, destination: str):
+        self.moved.append((message_id, destination))
+        return {"id": message_id, "parentFolderId": destination}
 
     async def create_subscription(self):
         self.created += 1
@@ -137,6 +153,32 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["action"], "created")
             self.assertEqual(graph.created, 1)
             self.assertEqual(len(db.subscriptions()), 1)
+
+    async def test_blocked_sender_pattern_moves_non_junk_message_to_deleted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            db.add_blocked_sender_pattern("skystoria", source="test", note="pattern")
+            graph = FakeGraph()
+            graph.messages["inbox-message"] = message(
+                "inbox-message",
+                "offer@123skystoria.online",
+                parent_folder_id="inbox",
+            )
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            result = await service.process_message("inbox-message")
+
+            self.assertEqual(result["status"], "processed")
+            self.assertEqual(result["decision"]["action"], "move_to_deleted")
+            self.assertEqual(graph.moved, [("inbox-message", "deleted")])
+            self.assertTrue(db.is_processed("inbox-message"))
 
     async def test_ensure_subscription_renews_when_subscription_recorded(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
