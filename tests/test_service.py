@@ -104,11 +104,18 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
                 policy=DecisionPolicy(config, ProviderAllowlist.default()),
             )
 
-            result = await service.block_all_deleted_senders(top=50, note="bulk review")
+            result = await service.block_all_deleted_senders(
+                max_messages=50,
+                page_size=10,
+                note="bulk review",
+            )
 
             self.assertEqual(graph.folder, "deleteditems")
+            self.assertEqual(graph.max_messages, 50)
+            self.assertEqual(graph.page_size, 10)
             self.assertEqual(result["reviewed_candidate_count"], 2)
             self.assertEqual(result["blocked_count"], 1)
+            self.assertEqual(result["scanned_folder"], "deleteditems")
             self.assertTrue(db.is_blocked_sender("spam1@example.com"))
             self.assertTrue(db.is_blocked_sender("spam2@example.com"))
 

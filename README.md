@@ -86,6 +86,7 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `POST /admin/rescan-junk-all`
 - `GET /admin/decisions`
 - `GET /admin/deleted-senders/candidates`
+- `GET /admin/deleted-senders/candidates-all`
 - `POST /admin/deleted-senders/block`
 - `POST /admin/deleted-senders/block-all`
 - `GET /admin/blocked-senders`
@@ -179,10 +180,16 @@ Review Deleted Items sender candidates:
 Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates?top=50" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
 ```
 
-Block all senders from the reviewed Deleted Items batch:
+Review sender candidates from more of the actual Outlook Deleted Items folder:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"confirm_reviewed_deleted_items":true,"top":50,"note":"Bulk reviewed Deleted Items"}'
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+```
+
+Block all unique senders found in the actual Outlook Deleted Items folder scan:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"confirm_reviewed_deleted_items":true,"max_messages":500,"page_size":25,"note":"Bulk reviewed Deleted Items"}'
 ```
 
 List app-blocked senders:
@@ -197,7 +204,11 @@ Unblock one sender:
 Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/blocked-senders/spam@example.com" -Headers @{ "X-Admin-Token" = $adminToken }
 ```
 
-Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list.
+The bulk Deleted Items block scans Outlook's real Deleted Items folder, including messages the app moved there and messages you manually moved or deleted there. It blocks unique sender email addresses found in that scan, up to `max_messages`.
+
+Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
+
+On Render Free, the app's SQLite database can be lost on restart or redeploy because there is no persistent disk. For durable app-blocked senders and decision history, use a persistent disk or external database.
 
 ## Subscription Automation
 
@@ -230,6 +241,23 @@ In GitHub:
 8. Go to **Actions**.
 9. Select **Ensure Microsoft Graph subscription**.
 10. Click **Run workflow** once to test it.
+
+GitHub Actions is also the default failure notification path. If the Render service is down, the admin token is wrong, Microsoft Graph auth fails, the refresh token stops working, or the subscription cannot be renewed, the workflow should fail.
+
+To receive failure notifications:
+
+1. Open GitHub.
+2. Click your profile picture in the top-right corner.
+3. Click **Settings**.
+4. Click **Notifications**.
+5. Find the **Actions** notification settings.
+6. Enable email or web notifications for failed workflow runs.
+7. Open this repository.
+8. Go to **Actions**.
+9. Open **Ensure Microsoft Graph subscription**.
+10. Confirm the latest run is green.
+
+This does not send a separate text message or custom email from the app itself. It relies on GitHub's workflow-failure notifications.
 
 ## Tests
 

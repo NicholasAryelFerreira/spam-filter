@@ -64,5 +64,10 @@ class BlockSendersRequest(BaseModel):
 
 class BlockAllDeletedSendersRequest(BaseModel):
     confirm_reviewed_deleted_items: bool
-    top: int = Field(default=50, ge=1, le=500)
+    max_messages: int = Field(default=500, ge=1, le=5000)
+    page_size: int = Field(default=25, ge=1, le=100)
+    top: int | None = Field(default=None, ge=1, le=5000)
     note: str = ""
+
+    def effective_max_messages(self) -> int:
+        return self.top if self.top is not None else self.max_messages

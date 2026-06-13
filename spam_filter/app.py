@@ -146,6 +146,14 @@ async def deleted_sender_candidates(top: int = 50):
     return await service.deleted_sender_candidates(top=top)
 
 
+@app.get("/admin/deleted-senders/candidates-all", dependencies=[Depends(require_admin)])
+async def all_deleted_sender_candidates(max_messages: int = 500, page_size: int = 25):
+    return await service.all_deleted_sender_candidates(
+        max_messages=max_messages,
+        page_size=page_size,
+    )
+
+
 @app.post("/admin/deleted-senders/block", dependencies=[Depends(require_admin)])
 def block_deleted_senders(request: BlockSendersRequest) -> list[dict]:
     if not request.confirm_reviewed_deleted_items:
@@ -163,7 +171,11 @@ async def block_all_deleted_senders(request: BlockAllDeletedSendersRequest) -> d
             status_code=400,
             detail="Set confirm_reviewed_deleted_items=true after reviewing Deleted Items candidates.",
         )
-    return await service.block_all_deleted_senders(top=request.top, note=request.note)
+    return await service.block_all_deleted_senders(
+        max_messages=request.effective_max_messages(),
+        page_size=request.page_size,
+        note=request.note,
+    )
 
 
 @app.get("/admin/blocked-senders", dependencies=[Depends(require_admin)])

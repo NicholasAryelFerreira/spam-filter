@@ -149,6 +149,21 @@ class SpamFilterService:
 
     async def deleted_sender_candidates(self, top: int = 50) -> list[DeletedSenderCandidate]:
         messages = await self.graph.list_messages_in_folder("deleteditems", top=top)
+        return self._group_deleted_sender_candidates(messages)
+
+    async def all_deleted_sender_candidates(
+        self,
+        max_messages: int = 500,
+        page_size: int = 25,
+    ) -> list[DeletedSenderCandidate]:
+        messages = await self.graph.list_all_messages_in_folder(
+            "deleteditems",
+            page_size=page_size,
+            max_messages=max_messages,
+        )
+        return self._group_deleted_sender_candidates(messages)
+
+    def _group_deleted_sender_candidates(self, messages) -> list[DeletedSenderCandidate]:
         grouped: dict[str, DeletedSenderCandidate] = {}
         for message in messages:
             sender = message.sender_email
@@ -181,8 +196,16 @@ class SpamFilterService:
             self.db.add_blocked_sender(sender, source="deleted_items_review", note=note)
         return self.db.list_blocked_senders()
 
-    async def block_all_deleted_senders(self, top: int = 50, note: str = "") -> dict:
-        candidates = await self.deleted_sender_candidates(top=top)
+    async def block_all_deleted_senders(
+        self,
+        max_messages: int = 500,
+        page_size: int = 25,
+        note: str = "",
+    ) -> dict:
+        candidates = await self.all_deleted_sender_candidates(
+            max_messages=max_messages,
+            page_size=page_size,
+        )
         senders = [
             candidate.sender_email
             for candidate in candidates
@@ -193,6 +216,8 @@ class SpamFilterService:
         return {
             "blocked_count": len(senders),
             "reviewed_candidate_count": len(candidates),
+            "scanned_folder": "deleteditems",
+            "requested_max_messages": max_messages,
             "blocked_senders": self.db.list_blocked_senders(),
         }
 
