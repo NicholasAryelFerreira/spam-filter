@@ -74,6 +74,8 @@ The project includes `Dockerfile`, `Procfile`, and `render.yaml`. Deploy to a ho
 https://your-service.example.com/webhooks/graph
 ```
 
+The Microsoft app registration needs delegated Graph permissions for `User.Read`, `Mail.ReadWrite`, and `offline_access`.
+
 Then create the Microsoft Graph subscription:
 
 ```powershell

@@ -38,7 +38,7 @@ class GraphClient:
                 "client_secret": self.settings.ms_client_secret,
                 "grant_type": "refresh_token",
                 "refresh_token": self.settings.ms_refresh_token,
-                "scope": "offline_access https://graph.microsoft.com/Mail.ReadWrite",
+                "scope": "offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.ReadWrite",
             }
         else:
             data = {
