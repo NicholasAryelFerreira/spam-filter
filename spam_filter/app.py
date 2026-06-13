@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Qu
 from fastapi.responses import PlainTextResponse
 
 from spam_filter.config import get_settings
+from spam_filter.graph import GraphError
 from spam_filter.models import BlockAllDeletedSendersRequest, BlockSendersRequest
 from spam_filter.service import SpamFilterService
 
@@ -63,7 +64,46 @@ def _extract_message_id(notification: dict) -> str | None:
 
 @app.post("/admin/subscriptions", dependencies=[Depends(require_admin)])
 async def create_subscription() -> dict:
-    return await service.create_subscription()
+    try:
+        return await service.create_subscription()
+    except GraphError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "graph_status_code": exc.status_code,
+                "graph_response": exc.response_text,
+            },
+        ) from exc
+
+
+@app.get("/admin/diagnostics", dependencies=[Depends(require_admin)])
+async def diagnostics() -> dict:
+    config = {
+        "has_openai_api_key": bool(settings.openai_api_key),
+        "has_ms_client_id": bool(settings.ms_client_id),
+        "has_ms_client_secret": bool(settings.ms_client_secret),
+        "has_ms_refresh_token": bool(settings.ms_refresh_token),
+        "has_graph_notification_url": bool(settings.graph_notification_url),
+        "has_graph_client_state": bool(settings.graph_client_state),
+        "has_admin_token": bool(settings.admin_token),
+        "ms_tenant_id": settings.ms_tenant_id,
+        "graph_notification_url": settings.graph_notification_url,
+    }
+    graph = {"auth": "not_checked"}
+    try:
+        junk_id = await service.graph.get_folder_id("junkemail")
+        graph = {"auth": "ok", "junk_folder_id_present": bool(junk_id)}
+    except GraphError as exc:
+        graph = {
+            "auth": "failed",
+            "message": str(exc),
+            "graph_status_code": exc.status_code,
+            "graph_response": exc.response_text,
+        }
+    except Exception as exc:
+        graph = {"auth": "failed", "message": type(exc).__name__}
+    return {"config": config, "graph": graph}
 
 
 @app.post("/admin/subscriptions/renew", dependencies=[Depends(require_admin)])

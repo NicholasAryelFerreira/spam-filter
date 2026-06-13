@@ -57,6 +57,7 @@ Do not commit `.env`. The repository ignores `.env`, local virtual environments,
 Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configured.
 
 - `GET /health`
+- `GET /admin/diagnostics`
 - `POST /admin/subscriptions`
 - `POST /admin/subscriptions/renew`
 - `POST /admin/rescan-junk`

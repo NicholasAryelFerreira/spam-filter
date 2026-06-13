@@ -13,7 +13,10 @@ GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 
 
 class GraphError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None, response_text: str = "") -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_text = response_text
 
 
 class GraphClient:
@@ -69,7 +72,11 @@ class GraphClient:
                 **kwargs,
             )
         if response.status_code >= 400:
-            raise GraphError(f"Microsoft Graph {method} {path} failed with HTTP {response.status_code}.")
+            raise GraphError(
+                f"Microsoft Graph {method} {path} failed with HTTP {response.status_code}.",
+                status_code=response.status_code,
+                response_text=response.text[:1000],
+            )
         if response.status_code == 204:
             return None
         return response.json()
