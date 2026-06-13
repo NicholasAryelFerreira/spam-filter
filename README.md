@@ -49,11 +49,29 @@ GRAPH_NOTIFICATION_URL=
 GRAPH_CLIENT_STATE=
 ADMIN_TOKEN=
 DATABASE_PATH=spam_filter.sqlite3
+INBOX_CONFIDENCE_THRESHOLD=0.92
+DELETE_CONFIDENCE_THRESHOLD=0.88
 ```
 
 Do not commit `.env`. The repository ignores `.env`, local virtual environments, SQLite runtime databases, and Python caches.
 
 `OPENAI_CLASSIFICATION_PROMPT` controls the model's classification instructions. Keep the structured-output labels intact: `legit_login_code`, `junk_keep`, `spam_harmful`, `move_to_inbox`, `keep_in_junk`, and `move_to_deleted`.
+
+Local `.env` and Render environment variables are separate:
+
+- Local `.env` controls the app only when you run it on your own computer.
+- Render environment variables control the deployed cloud app.
+- Changing local `.env` does not change Render.
+- Changing Render does not change local `.env`.
+- To change live cloud behavior, update the variable in Render and redeploy.
+- To keep local testing consistent with Render, update the same variable in `.env` too.
+
+Threshold variables are optional because the app has defaults:
+
+- `INBOX_CONFIDENCE_THRESHOLD` defaults to `0.92`.
+- `DELETE_CONFIDENCE_THRESHOLD` defaults to `0.88`.
+
+If these variables are missing in Render, the deployed app still uses those defaults. Add them in Render only if you want to change the live thresholds.
 
 ## Admin Endpoints
 
