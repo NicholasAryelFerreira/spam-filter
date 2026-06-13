@@ -180,6 +180,16 @@ Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers 
 
 If the app is turned off or Render loses its SQLite database, open `blocked-senders-backup.csv` to see the senders that were blocked by the app. Outlook still requires adding them to its native blocked senders list one by one.
 
+### 5. Restore App Blocklist From CSV
+
+If Render restarts, redeploys, or loses the app's SQLite database, restore the app blocklist from your local CSV backup:
+
+```powershell
+.\scripts\RestoreBlockedSendersFromBackup.ps1
+```
+
+This reads `blocked-senders-backup.csv` from this repo folder and re-adds those sender addresses to the app's blocklist. The app must be running and reachable on Render.
+
 Check service health:
 
 ```powershell
