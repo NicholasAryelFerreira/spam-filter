@@ -40,6 +40,7 @@ Copy `.env.example` to `.env` for local development and set the required values:
 ```text
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4-nano
+OPENAI_CLASSIFICATION_PROMPT=
 MS_TENANT_ID=common
 MS_CLIENT_ID=
 MS_CLIENT_SECRET=
@@ -51,6 +52,8 @@ DATABASE_PATH=spam_filter.sqlite3
 ```
 
 Do not commit `.env`. The repository ignores `.env`, local virtual environments, SQLite runtime databases, and Python caches.
+
+`OPENAI_CLASSIFICATION_PROMPT` controls the model's classification instructions. Keep the structured-output labels intact: `legit_login_code`, `junk_keep`, `spam_harmful`, `move_to_inbox`, `keep_in_junk`, and `move_to_deleted`.
 
 ## Admin Endpoints
 
@@ -135,6 +138,16 @@ Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/rescan-junk-all?max_messa
 ```
 
 Use this carefully because each unprocessed message may call the OpenAI API. On free Render, large scans can be slow or time out. Start with `max_messages=50`, then increase if needed.
+
+Before scanning all Junk Email:
+
+1. Make sure Render has redeployed the latest commit.
+2. Copy any local `.env` prompt changes to Render's `OPENAI_CLASSIFICATION_PROMPT` environment variable.
+3. Run `/admin/diagnostics` and confirm Graph auth is `ok`.
+4. Run `/admin/rescan-junk?top=5` first.
+5. Review `/admin/decisions`.
+6. If the first results look right, run `/admin/rescan-junk-all?max_messages=50&page_size=25`.
+7. Increase `max_messages` gradually.
 
 Review recent decisions:
 

@@ -29,6 +29,7 @@ def settings(database_path: str) -> Settings:
         inbox_confidence_threshold=0.92,
         delete_confidence_threshold=0.88,
         provider_allowlist_path="providers.json",
+        classification_prompt="Classify test email.",
     )
 
 

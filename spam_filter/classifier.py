@@ -63,12 +63,7 @@ class OpenAIEmailClassifier:
 
         response = await client.responses.create(
             model=self.settings.openai_model,
-            instructions=(
-                "Classify a message that arrived in Outlook Junk Email. "
-                "Move to Inbox only for legitimate provider login-code or verification-code emails. "
-                "Use spam_harmful for clear phishing, malware, extortion, credential theft, or scams. "
-                "If uncertain, choose junk_keep. Return only the requested structured JSON."
-            ),
+            instructions=self.settings.classification_prompt,
             input=json.dumps(prompt, ensure_ascii=True),
             text={
                 "format": {

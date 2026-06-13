@@ -5,6 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+DEFAULT_CLASSIFICATION_PROMPT = (
+    "Classify a message that arrived in Outlook Junk Email. "
+    "Move to Inbox only for legitimate provider login-code or verification-code emails. "
+    "Use spam_harmful for clear phishing, malware, extortion, credential theft, or scams. "
+    "If uncertain, choose junk_keep. Return only the requested structured JSON."
+)
+
+
 def load_dotenv(path: str | Path = ".env") -> None:
     env_path = Path(path)
     if not env_path.exists():
@@ -38,6 +46,7 @@ class Settings:
     inbox_confidence_threshold: float
     delete_confidence_threshold: float
     provider_allowlist_path: str
+    classification_prompt: str
 
     @property
     def uses_delegated_auth(self) -> bool:
@@ -95,5 +104,5 @@ def get_settings() -> Settings:
         inbox_confidence_threshold=float(os.getenv("INBOX_CONFIDENCE_THRESHOLD", "0.92")),
         delete_confidence_threshold=float(os.getenv("DELETE_CONFIDENCE_THRESHOLD", "0.88")),
         provider_allowlist_path=os.getenv("PROVIDER_ALLOWLIST_PATH", "providers.json"),
+        classification_prompt=os.getenv("OPENAI_CLASSIFICATION_PROMPT", DEFAULT_CLASSIFICATION_PROMPT),
     )
-
