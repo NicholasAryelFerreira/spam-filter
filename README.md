@@ -160,17 +160,17 @@ Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates
 
 ### 3. Block Deleted Items Senders
 
-After reviewing Deleted Items, this blocks all unique sender email addresses found in that Deleted Items scan:
+After reviewing Deleted Items, this blocks all unique sender email addresses found in that Deleted Items scan and immediately refreshes `blocked-senders-backup.csv`:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/deleted-senders/block-all" -Headers @{ "X-Admin-Token" = $adminToken } -ContentType "application/json" -Body '{"confirm_reviewed_deleted_items":true,"max_messages":500,"page_size":25,"note":"Bulk reviewed Deleted Items"}'
+.\scripts\BlockDeletedSendersAndBackup.ps1 -MaxMessages 500 -PageSize 25
 ```
 
 Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When a blocked sender later appears in Junk Email, this app moves that message to Deleted Items.
 
 ### 4. Back Up App-Blocked Senders
 
-Render Free does not provide persistent disk storage, so keep a local CSV backup after blocking senders:
+The script in step 3 already refreshes this backup. To refresh the local CSV without blocking new senders, run:
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/blocked-senders" -Headers @{ "X-Admin-Token" = $adminToken } |
