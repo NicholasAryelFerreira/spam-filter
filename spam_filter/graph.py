@@ -209,6 +209,9 @@ class GraphClient:
         )
         return payload
 
+    async def delete_subscription(self, subscription_id: str) -> None:
+        await self.request("DELETE", f"/subscriptions/{quote(subscription_id)}")
+
     @staticmethod
     def _message_from_payload(payload: dict) -> EmailMessage:
         sender = payload.get("from") or payload.get("sender") or {}

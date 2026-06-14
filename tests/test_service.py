@@ -100,6 +100,9 @@ class FakeGraph:
             "expirationDateTime": "2026-06-18T12:00:00Z",
         }
 
+    async def delete_subscription(self, subscription_id: str):
+        self.deleted_subscription_id = subscription_id
+
 
 class FakeClassifier:
     pass
@@ -199,6 +202,49 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["action"], "renewed")
             self.assertEqual(graph.renewed, 1)
             self.assertEqual(db.subscriptions()[0]["subscription_id"], "existing-subscription")
+
+    async def test_delete_known_subscriptions_removes_graph_and_local_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            db.upsert_subscription("existing-subscription", "me/messages", "2026-06-14T12:00:00Z")
+            graph = FakeGraph()
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            result = await service.delete_known_subscriptions()
+
+            self.assertEqual(result["deleted"], ["existing-subscription"])
+            self.assertEqual(result["failed"], [])
+            self.assertEqual(graph.deleted_subscription_id, "existing-subscription")
+            self.assertEqual(db.subscriptions(), [])
+
+    async def test_deleted_sender_candidates_can_hide_already_blocked_senders(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = settings(str(Path(temp_dir) / "test.sqlite3"))
+            db = Database(config.database_path)
+            db.add_blocked_sender("spam1@example.com", source="test", note="already")
+            graph = FakeGraph()
+            service = SpamFilterService(
+                settings=config,
+                db=db,
+                graph=graph,
+                classifier=FakeClassifier(),
+                policy=DecisionPolicy(config, ProviderAllowlist.default()),
+            )
+
+            candidates = await service.all_deleted_sender_candidates(
+                max_messages=50,
+                page_size=10,
+                include_blocked=False,
+            )
+
+            self.assertEqual([candidate.sender_email for candidate in candidates], ["spam2@example.com"])
 
     async def test_rescan_all_junk_uses_paged_folder_scan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

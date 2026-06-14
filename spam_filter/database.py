@@ -264,3 +264,10 @@ class Database:
                 """
             ).fetchall()
             return [dict(row) for row in rows]
+
+    def remove_subscription(self, subscription_id: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "DELETE FROM graph_subscriptions WHERE subscription_id = ?",
+                (subscription_id,),
+            )

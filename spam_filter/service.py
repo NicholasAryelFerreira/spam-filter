@@ -159,27 +159,55 @@ class SpamFilterService:
         renewed = await self.renew_known_subscriptions()
         return {"action": "renewed", "subscriptions": renewed}
 
-    async def deleted_sender_candidates(self, top: int = 50) -> list[DeletedSenderCandidate]:
+    async def delete_known_subscriptions(self) -> dict:
+        deleted = []
+        failed = []
+        for subscription in self.db.subscriptions():
+            subscription_id = subscription["subscription_id"]
+            try:
+                await self.graph.delete_subscription(subscription_id)
+                deleted.append(subscription_id)
+            except Exception as exc:
+                failed.append({"subscription_id": subscription_id, "error": type(exc).__name__})
+            finally:
+                self.db.remove_subscription(subscription_id)
+        return {"deleted": deleted, "failed": failed}
+
+    async def deleted_sender_candidates(
+        self,
+        top: int = 50,
+        include_blocked: bool = True,
+    ) -> list[DeletedSenderCandidate]:
         messages = await self.graph.list_messages_in_folder("deleteditems", top=top)
-        return self._group_deleted_sender_candidates(messages)
+        return self._group_deleted_sender_candidates(messages, include_blocked=include_blocked)
 
     async def all_deleted_sender_candidates(
         self,
         max_messages: int = 500,
         page_size: int = 25,
+        include_blocked: bool = True,
     ) -> list[DeletedSenderCandidate]:
         messages = await self.graph.list_all_messages_in_folder(
             "deleteditems",
             page_size=page_size,
             max_messages=max_messages,
         )
-        return self._group_deleted_sender_candidates(messages)
+        return self._group_deleted_sender_candidates(messages, include_blocked=include_blocked)
 
-    def _group_deleted_sender_candidates(self, messages) -> list[DeletedSenderCandidate]:
+    def _group_deleted_sender_candidates(
+        self,
+        messages,
+        include_blocked: bool = True,
+    ) -> list[DeletedSenderCandidate]:
         grouped: dict[str, DeletedSenderCandidate] = {}
         for message in messages:
             sender = message.sender_email
             if not sender:
+                continue
+            already_blocked = self.db.is_blocked_sender(sender) or bool(
+                self.db.matching_blocked_sender_pattern(sender)
+            )
+            if already_blocked and not include_blocked:
                 continue
             sample = DeletedSenderSample(
                 message_id=message.id,
@@ -191,7 +219,7 @@ class SpamFilterService:
                     sender_email=sender,
                     sender_name=message.sender_name,
                     message_count=1,
-                    already_blocked=self.db.is_blocked_sender(sender),
+                    already_blocked=already_blocked,
                     samples=[sample],
                 )
                 continue

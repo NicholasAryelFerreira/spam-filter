@@ -90,6 +90,7 @@ Admin endpoints require the `X-Admin-Token` header when `ADMIN_TOKEN` is configu
 - `POST /admin/subscriptions`
 - `POST /admin/subscriptions/ensure`
 - `POST /admin/subscriptions/renew`
+- `DELETE /admin/subscriptions`
 - `POST /admin/rescan-junk`
 - `POST /admin/rescan-junk-all`
 - `GET /admin/decisions`
@@ -163,10 +164,10 @@ Use larger scans carefully because each unprocessed message may call the OpenAI 
 
 ### 2. Review Deleted Items
 
-This reviews sender candidates from the actual Outlook Deleted Items folder, including emails the app moved there and emails you manually moved or deleted there:
+This reviews sender candidates from the actual Outlook Deleted Items folder, including emails the app moved there and emails you manually moved or deleted there. The command below hides senders that are already blocked, so you can focus on new senders:
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25&include_blocked=false" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
 ```
 
 ### 3. Block Deleted Items Senders
@@ -224,6 +225,42 @@ Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/blocked-sender-patterns
 
 Exact blocked senders and blocked sender patterns are checked before the Junk Email-only AI classification rule. When the app is running and receives the Microsoft Graph notification, matching messages are moved to Deleted Items even if Outlook first places them outside Junk Email. This app cannot reject email at the mail-server level or stop a sender from transmitting to Microsoft; it acts after the message arrives.
 
+### 7. Stop or Pause the App
+
+To stop the app from processing new mail immediately:
+
+1. Run this command in PowerShell to delete the app's recorded Microsoft Graph subscriptions:
+
+```powershell
+Invoke-RestMethod -Method Delete -Uri "$serviceUrl/admin/subscriptions" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
+2. Open GitHub.
+3. Open this repository.
+4. Go to **Actions**.
+5. Open **Ensure Microsoft Graph subscription**.
+6. Click **...**.
+7. Click **Disable workflow**.
+
+If you do not disable the GitHub Actions workflow, it can recreate the Microsoft Graph subscription later.
+
+Optional extra stop:
+
+1. Open Render.
+2. Open the `outlook-ai-spam-filter` service.
+3. Click **Settings**.
+4. Suspend or stop the service.
+
+To start the app again:
+
+1. Resume the Render service if you suspended it.
+2. Re-enable the GitHub Actions workflow.
+3. Run:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "$serviceUrl/admin/subscriptions/ensure" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 5
+```
+
 Check service health:
 
 ```powershell
@@ -278,10 +315,10 @@ Review Deleted Items sender candidates:
 Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates?top=50" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
 ```
 
-Review sender candidates from more of the actual Outlook Deleted Items folder:
+Review sender candidates from more of the actual Outlook Deleted Items folder, hiding already-blocked senders:
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
+Invoke-RestMethod -Method Get -Uri "$serviceUrl/admin/deleted-senders/candidates-all?max_messages=500&page_size=25&include_blocked=false" -Headers @{ "X-Admin-Token" = $adminToken } | ConvertTo-Json -Depth 6
 ```
 
 Block all unique senders found in the actual Outlook Deleted Items folder scan:
@@ -307,6 +344,8 @@ The bulk Deleted Items block scans Outlook's real Deleted Items folder, includin
 Blocked senders are stored in this app's SQLite database. They are not written to Outlook's native "Blocked senders and domains" list. When the app is running and receives a notification for a blocked sender, it moves that message to Deleted Items.
 
 Blocked sender patterns are also stored in this app's SQLite database. When a sender email address contains a blocked pattern, such as `skystoria`, the app moves that message to Deleted Items from any folder it processes.
+
+Deleted Items review can hide already-blocked senders with `include_blocked=false`. That is safer than permanently deleting messages from Deleted Items because it lets you focus on new senders without removing email history from Outlook.
 
 On Render Free, the app's SQLite database can be lost on restart or redeploy because there is no persistent disk. For durable app-blocked senders and decision history, use a persistent disk or external database.
 

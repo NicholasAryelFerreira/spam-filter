@@ -130,6 +130,11 @@ async def ensure_subscription() -> dict:
         ) from exc
 
 
+@app.delete("/admin/subscriptions", dependencies=[Depends(require_admin)])
+async def delete_subscriptions() -> dict:
+    return await service.delete_known_subscriptions()
+
+
 @app.post("/admin/rescan-junk", dependencies=[Depends(require_admin)])
 async def rescan_junk(top: int = 25) -> list[dict]:
     return await service.rescan_junk(top=top)
@@ -146,15 +151,20 @@ def recent_decisions(limit: int = 50) -> list[dict]:
 
 
 @app.get("/admin/deleted-senders/candidates", dependencies=[Depends(require_admin)])
-async def deleted_sender_candidates(top: int = 50):
-    return await service.deleted_sender_candidates(top=top)
+async def deleted_sender_candidates(top: int = 50, include_blocked: bool = True):
+    return await service.deleted_sender_candidates(top=top, include_blocked=include_blocked)
 
 
 @app.get("/admin/deleted-senders/candidates-all", dependencies=[Depends(require_admin)])
-async def all_deleted_sender_candidates(max_messages: int = 500, page_size: int = 25):
+async def all_deleted_sender_candidates(
+    max_messages: int = 500,
+    page_size: int = 25,
+    include_blocked: bool = True,
+):
     return await service.all_deleted_sender_candidates(
         max_messages=max_messages,
         page_size=page_size,
+        include_blocked=include_blocked,
     )
 
 

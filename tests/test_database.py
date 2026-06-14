@@ -47,6 +47,14 @@ class DatabaseTests(unittest.TestCase):
             db.record_processed("message-1", "<m@example.test>", "sender@example.com", decision)
             self.assertTrue(db.is_processed("message-1"))
 
+    def test_subscription_remove(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db = Database(str(Path(temp_dir) / "test.sqlite3"))
+            db.upsert_subscription("sub-1", "me/messages", "2026-06-18T12:00:00Z")
+            self.assertEqual(len(db.subscriptions()), 1)
+            db.remove_subscription("sub-1")
+            self.assertEqual(db.subscriptions(), [])
+
 
 if __name__ == "__main__":
     unittest.main()
