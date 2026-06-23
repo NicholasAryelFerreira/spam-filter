@@ -405,3 +405,8 @@ cd "C:\Users\nafer\github repo\Spam Filter"
 .\.venv\Scripts\Activate.ps1
 python -m unittest discover -s tests
 ```
+
+## License
+
+MIT License. See `LICENSE`.
+
